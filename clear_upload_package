@@ -1,0 +1,2 @@
+#!/bin/sh
+curl -X POST -H 'Expect:' -H 'Connection: close' -F "file=@$1" "http://192.168.15.1/cgi-bin/sysconf.cgi?page=mfg&action=12"
