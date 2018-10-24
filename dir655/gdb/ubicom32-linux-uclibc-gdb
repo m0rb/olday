@@ -1,0 +1,3 @@
+#!/bin/sh
+
+LD_PRELOAD=so/libexpat.so.0:so/libncurses.so.5:so/libtinfo.so.5 ./ubicom32-linux-uclibc-gdb.bin $@
